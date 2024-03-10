@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -276,6 +278,9 @@ growproc(int n)
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
+
+/*TODO*/
+	
 int
 fork(void)
 {
@@ -309,7 +314,9 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
-
+  
+  np->trace_mask = p->trace_mask;
+  
   pid = np->pid;
 
   release(&np->lock);
@@ -324,6 +331,17 @@ fork(void)
 
   return pid;
 }
+
+void proc_num(uint64 *nproc){ /*fetch proc num*/
+  *nproc = 0;
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state != UNUSED){
+      (*nproc)++;
+    }
+  }
+}
+
 
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
@@ -681,3 +699,4 @@ procdump(void)
     printf("\n");
   }
 }
+

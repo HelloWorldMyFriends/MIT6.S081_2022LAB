@@ -16,6 +16,7 @@
 #include "file.h"
 #include "fcntl.h"
 
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -108,7 +109,7 @@ sys_close(void)
 }
 
 uint64
-sys_fstat(void)
+sys_fstat(void) 
 {
   struct file *f;
   uint64 st; // user pointer to struct stat
@@ -118,6 +119,8 @@ sys_fstat(void)
     return -1;
   return filestat(f, st);
 }
+
+
 
 // Create the path new as a link to the same inode as old.
 uint64
