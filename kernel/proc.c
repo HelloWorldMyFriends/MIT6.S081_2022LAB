@@ -146,6 +146,10 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->ticks = 0;
+  p->alarm_past = 0;
+  p->handler = (void*)0;
+
   return p;
 }
 
@@ -168,6 +172,9 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->ticks = 0;
+  p->alarm_past = 0;
+  p->handler = 0;
   p->state = UNUSED;
 }
 
@@ -680,4 +687,20 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+sigalarm(int ticks, void (*handler)(void)){/*TODO*/
+  struct proc *p = myproc();
+  p->ticks = ticks;
+  p->handler = handler;
+  p->alarm_past = 0;
+  return 0;
+}
+
+
+
+int
+sigreturn(){/*TODO*/
+  return 0;
 }
