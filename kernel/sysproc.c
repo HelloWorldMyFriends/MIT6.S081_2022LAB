@@ -74,8 +74,15 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
-  return 0;
+  uint64 va;
+  int n;
+  uint64 access_abits;
+  argaddr(0, &va);
+  argint(1, &n);
+  argaddr(2, &access_abits);
+  if(n <= 0 || n > 512)
+    return -1;
+  return pgaccess(va, n, access_abits); 
 }
 #endif
 
@@ -100,3 +107,4 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+

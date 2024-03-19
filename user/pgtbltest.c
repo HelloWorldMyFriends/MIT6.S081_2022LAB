@@ -48,7 +48,7 @@ ugetpid_test()
   printf("ugetpid_test: OK\n");
 }
 
-void
+void  /*TODO*/
 pgaccess_test()
 {
   char *buf;

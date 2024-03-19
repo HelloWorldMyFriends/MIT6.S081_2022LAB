@@ -714,3 +714,20 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+int pgaccess(uint64 va, int n, uint64 access_abits){
+  struct proc *p = myproc();
+  pte_t *pte;
+  int i;
+  unsigned int bitmasks = 0;
+  for(i = 0; i < n; i++){
+    pte = walk(p->pagetable, va + i * PGSIZE, 0);
+    if(pte && (*pte && PTE_V) && (*pte & PTE_A)){
+      *pte &= ~PTE_A;  //clear PTE_A
+      bitmasks |= (1 << i);
+    }
+  }
+  copyout(p->pagetable, access_abits, (char *)&bitmasks, sizeof(bitmasks));
+  return 0;
+}

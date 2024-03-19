@@ -116,7 +116,7 @@ ugetpid_test()
 
 00000000000000e4 <pgaccess_test>:
 
-void
+void  /*TODO*/
 pgaccess_test()
 {
   e4:	7179                	addi	sp,sp,-48
