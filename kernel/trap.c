@@ -37,7 +37,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
-
+  
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
@@ -78,10 +78,12 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2){ /*TODO*/
-    if(p->ticks && (++p->alarm_past == p->ticks)){
+    if(!p->alarm_sigreturn && p->ticks && (++p->alarm_past == p->ticks)){
       p->alarm_past = 0;
+      p->alarm_sigreturn = 1;
+      *(p->copy_trapframe) = *(p->trapframe);
       p->trapframe->epc = (uint64)p->handler;
-    }
+    } 
     // printf("good\n");
     // p->trapframe->epc = (uint64)p->handler;
     yield();

@@ -107,4 +107,6 @@ struct proc {
   int ticks;
   int alarm_past;
   void (*handler)(); 
+  int alarm_sigreturn;
+  struct trapframe *copy_trapframe;
 };
