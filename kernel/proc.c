@@ -152,7 +152,7 @@ found:
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
-static void
+static void 
 freeproc(struct proc *p)
 {
   if(p->trapframe)

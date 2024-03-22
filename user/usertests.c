@@ -2430,19 +2430,33 @@ textwrite(char *s)
   
   pid = fork();
   if(pid == 0) {
+    // printf("------hello\n");
     volatile int *addr = (int *) 0;
     *addr = 10;
+    printf("------\n");   //this line should not happened
     exit(1);
   } else if(pid < 0){
     printf("%s: fork failed\n", s);
     exit(1);
   }
   wait(&xstatus);
+  // printf("------\n");
   if(xstatus == -1)  // kernel killed child?
-    exit(0);
-  else
-    exit(xstatus);
+    exit(0);         //textwrite() exit 0 if success
+  else{
+    // printf("------\n");
+    // printf("------%d\n", xstatus);
+    exit(xstatus);  
+  }
 }
+
+// void  /* TODO */
+// textwrite(char *s)
+// {
+//   volatile int *addr = (int *) 0;
+//   *addr = 10;
+//   exit(1);
+// }
 
 // regression test. copyin(), copyout(), and copyinstr() used to cast
 // the virtual page address to uint, which (with certain wild system

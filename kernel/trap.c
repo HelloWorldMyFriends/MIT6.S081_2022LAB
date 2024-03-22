@@ -33,7 +33,7 @@ trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
-void
+void  /* TODO */
 usertrap(void)
 {
   int which_dev = 0;
@@ -67,7 +67,19 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 15){  /*scause 15 is write fault*/
+      uint64 stval = r_stval();
+        // printf("----jhz\n");    
+      if(is_cow_fault(p->pagetable, stval) == 0){
+        // printf("----jhz\n");
+        if(handle_cow_fault(p->pagetable, stval) < 0){
+          printf("usertrap(): copy and write failed!\n");
+          p->killed = 1;
+        }
+      } 
+      else goto unexpected;
   } else {
+unexpected:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);

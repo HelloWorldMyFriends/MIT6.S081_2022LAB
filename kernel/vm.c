@@ -302,28 +302,29 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int
+
+int /* TODO */
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
-
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+    if(*pte & PTE_W){
+      *pte &= ~PTE_W;
+      *pte |= PTE_COW;
+    }
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
+    inc_ref((void *)pa);
   }
   return 0;
 
@@ -348,13 +349,21 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
-int
+int /* TODO */
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-
+  
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+
+    if(is_cow_fault(pagetable, dstva) == 0){  /* 思考:为什么这里设置成 != 0 filetest就会报错 */
+      if(handle_cow_fault(pagetable, dstva) < 0){
+        printf("copyout(): copy and write failed!\n");
+        return -1;
+     }
+   } 
+
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -436,4 +445,51 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int
+is_cow_fault(pagetable_t pagetable, uint64 va){
+  if(va >= MAXVA){
+    goto is_cow_fault_error;
+  }
+  pte_t *pte;
+  if((pte = walk(pagetable, PGROUNDDOWN(va), 0)) == 0)
+    goto is_cow_fault_error;
+  // if(pte && (*pte & (PTE_V | PTE_U | PTE_COW))) /*TODO*/
+    if(pte && (*pte & (PTE_COW))) /*TODO*/
+    return 0;
+is_cow_fault_error:
+  return -1;    
+}
+
+// implement copy on write here
+int
+handle_cow_fault(pagetable_t pagetable, uint64 va){  
+  pte_t *pte;
+  uint64 pa, flags;
+  char *mem;
+
+  va = PGROUNDDOWN(va);
+  if((pte = walk(pagetable, va, 0)) == 0){
+    printf("-----1-----\n");
+    goto handle_cow_fault_error;
+
+  }
+  pa = PTE2PA(*pte);
+  flags = (PTE_FLAGS(*pte) & ~PTE_COW) | PTE_W;
+  mem = (char *)kalloc();
+  if(!mem){
+    printf("-----2-----\n");
+    goto handle_cow_fault_error;  
+  }
+  memmove(mem, (char *)pa, PGSIZE);
+  uvmunmap(pagetable, va, 1, 1);  /* why 1? */
+  if(mappages(pagetable, va, PGSIZE, (uint64)mem, flags) != 0){
+    kfree(mem);
+    printf("-----3-----\n");
+    goto handle_cow_fault_error;
+  }
+  return 0;
+handle_cow_fault_error:
+  return -1;  /* error */
 }

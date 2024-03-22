@@ -11,6 +11,10 @@
 
 void freerange(void *pa_start, void *pa_end);
 
+struct spinlock cow_ref_lock;
+
+int cow_count[(PHYSTOP - KERNBASE) / PGSIZE];
+
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
@@ -24,11 +28,28 @@ struct {
 } kmem;
 
 void
+inc_ref(void *pa){
+  acquire(&cow_ref_lock);
+  cow_count[PA2COUNT(pa)]++;
+  release(&cow_ref_lock);
+}
+
+void
+dec_ref(void *pa){
+  acquire(&cow_ref_lock);
+  cow_count[PA2COUNT(pa)]--;
+  release(&cow_ref_lock);
+}
+
+void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  initlock(&cow_ref_lock, "cow_ref_lock");
   freerange(end, (void*)PHYSTOP);
 }
+
+
 
 void
 freerange(void *pa_start, void *pa_end)
@@ -46,6 +67,10 @@ freerange(void *pa_start, void *pa_end)
 void
 kfree(void *pa)
 {
+  dec_ref(pa);
+  if(cow_count[PA2COUNT(pa)] > 0)
+    return;
+
   struct run *r;
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
@@ -53,6 +78,8 @@ kfree(void *pa)
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
+  
+  
 
   r = (struct run*)pa;
 
@@ -76,7 +103,9 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    cow_count[PA2COUNT(r)] = 1;
+  }
   return (void*)r;
 }
