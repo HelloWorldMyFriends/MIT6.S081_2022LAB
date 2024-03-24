@@ -8,6 +8,8 @@
 #define NBUCKET 5
 #define NKEYS 100000
 
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;            // declare a lock
+
 struct entry {
   int key;
   int value;
@@ -30,6 +32,7 @@ static void
 insert(int key, int value, struct entry **p, struct entry *n)
 {
   struct entry *e = malloc(sizeof(struct entry));
+  
   e->key = key;
   e->value = value;
   e->next = n;
@@ -47,6 +50,7 @@ void put(int key, int value)
     if (e->key == key)
       break;
   }
+  pthread_mutex_lock(&lock);
   if(e){
     // update the existing key.
     e->value = value;
@@ -54,7 +58,7 @@ void put(int key, int value)
     // the new is new.
     insert(key, value, &table[i], table[i]);
   }
-
+  pthread_mutex_unlock(&lock);
 }
 
 static struct entry*
@@ -64,10 +68,11 @@ get(int key)
 
 
   struct entry *e = 0;
+  pthread_mutex_lock(&lock);
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
-
+  pthread_mutex_unlock(&lock);
   return e;
 }
 
