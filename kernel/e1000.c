@@ -33,6 +33,8 @@ e1000_init(uint32 *xregs)
 
   regs = xregs;
 
+  // printf("%d\n", sizeof(tx_ring));  result: 256 = 16 * 16
+
   // Reset the device
   regs[E1000_IMS] = 0; // disable interrupts
   regs[E1000_CTL] |= E1000_CTL_RST;
@@ -42,7 +44,7 @@ e1000_init(uint32 *xregs)
   // [E1000 14.5] Transmit initialization
   memset(tx_ring, 0, sizeof(tx_ring));
   for (i = 0; i < TX_RING_SIZE; i++) {
-    tx_ring[i].status = E1000_TXD_STAT_DD;
+    tx_ring[i].status = E1000_TXD_STAT_DD;  /* Descriptor Done */
     tx_mbufs[i] = 0;
   }
   regs[E1000_TDBAL] = (uint64) tx_ring;
@@ -95,6 +97,7 @@ e1000_init(uint32 *xregs)
 int
 e1000_transmit(struct mbuf *m)
 {
+  printf("---transmit---\n");
   //
   // Your code here.
   //
@@ -102,13 +105,48 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
-  
+
+
+  // First ask the E1000 for the TX ring index at which 
+  // it's expecting the next packet, by reading 
+  // the E1000_TDT control register. 
+  int idx = regs[E1000_TDT];
+
+  // Then check if the the ring is overflowing. 
+  // If E1000_TXD_STAT_DD is not set in the descriptor indexed by E1000_TDT, 
+  // the E1000 hasn't finished the corresponding previous transmission request, 
+  // so return an error.
+  if(idx > TX_RING_SIZE){
+    printf("e1000_transmit error: TX_RING is overflowing\n");
+    return -1;
+  }
+  if(tx_ring[idx].status != E1000_TXD_STAT_DD){
+    printf("e1000_transmit error: the E1000 hasn't finished the corresponding previous transmission request\n");
+    return -1;
+  }
+
+  // Otherwise, use mbuffree() to free the last mbuf that 
+  // was transmitted from that descriptor (if there was one).
+
+
+  // Then fill in the descriptor. m->head points to the packet's content in memory, 
+  // and m->len is the packet length. 
+  // Set the necessary cmd flags (look at Section 3.3 in the E1000 manual) and 
+  // stash away a pointer to the mbuf for later freeing. 
+
+  // Finally, update the ring position by adding one to E1000_TDT modulo TX_RING_SIZE.
+
+  // If e1000_transmit() added the mbuf successfully to the ring, return 0. 
+  // On failure (e.g., there is no descriptor available to transmit the mbuf), 
+  // return -1 so that the caller knows to free the mbuf.
+
   return 0;
 }
 
 static void
 e1000_recv(void)
 {
+    printf("---recv---\n");
   //
   // Your code here.
   //
