@@ -1,0 +1,35 @@
+*** Now run 'gdb' in another window.
+
+xv6 kernel is booting
+
+hart 2 starting
+hart 1 starting
+init: starting sh
+$ kalloctest
+start test1
+test1 results:
+--- lock kmem/bcache stats
+lock: kmem: #test-and-set 0 #acquire() 46582
+lock: kmem: #test-and-set 0 #acquire() 191038
+lock: kmem: #test-and-set 0 #acquire() 195463
+lock: bcache: #test-and-set 0 #acquire() 1226
+lock: bcache: #test-and-set 0 #acquire() 4
+lock: bcache: #test-and-set 0 #acquire() 6
+lock: bcache: #test-and-set 0 #acquire() 14
+lock: bcache: #test-and-set 0 #acquire() 12
+lock: bcache: #test-and-set 0 #acquire() 12
+lock: bcache: #test-and-set 0 #acquire() 12
+lock: bcache: #test-and-set 0 #acquire() 106
+lock: bcache: #test-and-set 0 #acquire() 1082
+lock: bcache: #test-and-set 0 #acquire() 4
+lock: bcache: #test-and-set 0 #acquire() 4
+lock: bcache: #test-and-set 0 #acquire() 14
+--- top 5 contended locks:
+lock: virtio_disk: #test-and-set 1814235 #acquire() 1890
+lock: proc: #test-and-set 119310 #acquire() 563582
+lock: proc: #test-and-set 100330 #acquire() 563584
+lock: proc: #test-and-set 31021 #acquire() 163307
+lock: proc: #test-and-set 23226 #acquire() 163238
+tot= 0
+test1 OK
+qemu-system-riscv64: terminating on signal 2
