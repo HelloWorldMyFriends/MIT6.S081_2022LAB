@@ -301,8 +301,43 @@ create(char *path, short type, short major, short minor)
   return 0;
 }
 
+static struct inode*
+symlinkroot(struct inode *ip)
+{
+  uint visted[SYMLINKDEPTH];
+  char path[MAXPATH];
+     
+  /** for-loop 之前 ip 一定持有 lock */
+  for(int i=0; i<SYMLINKDEPTH; i++) {
+    visted[i] = ip->inum;
+
+    /** 在调用 readi 之前需要持有 ip->lock */
+    if(readi(ip, 0, (uint64)path, 0, MAXPATH) <= 0) 
+      goto rootFail;
+
+    /** 寻找 symlink 的上级 inode */
+    iunlockput(ip);   /** 调用 namei 时别带 lock ，否则会 deadlock ， 因为 namei 可能会操纵 ip */ 
+    if((ip=namei(path)) == 0) 
+      return 0;
+      
+    for(int tail=i; tail>=0; tail--) {
+      if(ip->inum == visted[tail]) 
+        return 0;
+    }
+    
+    /** 没成环 */
+    ilock(ip);
+    if(ip->type != T_SYMLINK)  /** 持有 lock 返回上层 */
+      return ip;
+  }  
+
+rootFail:
+  iunlockput(ip);
+  return 0;
+}
+
 uint64
-sys_open(void)
+sys_open(void)  //TODO
 {
   char path[MAXPATH];
   int fd, omode;
@@ -327,9 +362,18 @@ sys_open(void)
       end_op();
       return -1;
     }
+
     ilock(ip);
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
+      end_op();
+      return -1;
+    }
+  }
+
+  if(ip->type == T_SYMLINK && (omode & O_NOFOLLOW) == 0){
+    if((ip = symlinkroot(ip)) == 0){
+      /** 若溯源失败，则在 symlinkroot 中放锁，这是因为代码封装的局限性必须要做出的牺牲 */
       end_op();
       return -1;
     }
@@ -501,5 +545,32 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64  //TODO
+sys_symlink(void)
+{
+  struct inode *ip;
+  char target[MAXPATH], path[MAXPATH];
+  if((argstr(0, target, MAXPATH) < 0) || (argstr(1, path, MAXPATH) < 0))
+    return -1;
+  begin_op();
+
+  if((ip = create(path, T_SYMLINK, 0, 0)) == 0){
+    end_op();
+    return -1;
+  }
+  // write target's path to ip's first block
+  if(writei(ip, 0, (uint64)target, 0, strlen(target) < 0)){
+    // make sure to have ip lock before calling writei
+    // and don't forget to release ip lock
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  iunlockput(ip);
+  end_op();
+
   return 0;
 }
