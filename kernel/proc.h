@@ -81,6 +81,15 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct vma{
+  uint64 addr;  //起始地址
+  uint64 sz;    //size
+  uint64 prot;  //protection
+  uint8 flags;  
+  struct file* file;  //mem指向的文件
+  uint offset;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -97,11 +106,15 @@ struct proc {
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
-  uint64 sz;                   // Size of process memory (bytes)
+  uint64 sz;                   // Size of process memory (bytes)  
   pagetable_t pagetable;       // User page table
   struct trapframe *trapframe; // data page for trampoline.S
   struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  struct vma vma[16];
+  uint64 mmap_addr;
+  uint8 vma_size; 
 };
+

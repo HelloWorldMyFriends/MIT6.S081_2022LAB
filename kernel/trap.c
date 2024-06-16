@@ -5,6 +5,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -68,11 +71,45 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
+    uint64 va = PGROUNDDOWN(r_stval());
+    if((r_scause() == 13 || r_scause() == 15) && va >= p->mmap_addr && va < TRAPFRAME){
+      int vma_idx = -1;
+      char *mem;
+      for(int i = 0; i < p->vma_size; ++i){
+        if(va >= p->vma[i].addr && va < p->vma[i].addr + p->sz){  //判断va落入的地址区间对应的索引
+          vma_idx = i;
+          break;
+        }
+      }
+
+      if(vma_idx == -1)
+        goto error;
+
+      if((mem = kalloc()) == 0)
+        goto error;
+
+      memset(mem, 0, PGSIZE);
+      struct vma p_vma = p->vma[vma_idx];
+      uint8 RD_flag = p_vma.prot & 0x1;
+      uint8 WR_flag = p_vma.prot & 0x2;
+      uint8 flag = 0;
+      flag = RD_flag ? flag | PTE_R : flag;
+      flag = WR_flag ? flag | PTE_W : flag;
+      if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, flag|PTE_U) != 0){
+        kfree(mem);
+        goto error;
+      }
+      ilock(p_vma.file->ip);
+      readi(p_vma.file->ip, 0, (uint64)mem, va - p_vma.addr + p_vma.offset, PGSIZE);
+      iunlock(p_vma.file->ip);
+      goto done;
+    }
+error:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);
   }
-
+done:
   if(killed(p))
     exit(-1);
 

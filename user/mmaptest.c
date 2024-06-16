@@ -114,7 +114,7 @@ mmap_test(void)
   if (p == MAP_FAILED)
     err("mmap (1)");
   _v1(p);
-  if (munmap(p, PGSIZE*2) == -1)
+  if (munmap(p, PGSIZE*2) == -1)  //TODO error occured
     err("munmap (1)");
 
   printf("test mmap f: OK\n");
@@ -276,7 +276,8 @@ fork_test(void)
     err("fork");
   if (pid == 0) {
     _v1(p1);
-    munmap(p1, PGSIZE); // just the first page
+    // printf("\n---aaa---\n");
+    munmap(p1, PGSIZE); // just the first page  //TODO
     exit(0); // tell the parent that the mapping looks OK.
   }
 

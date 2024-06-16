@@ -5,6 +5,10 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "fcntl.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 uint64
 sys_exit(void)
@@ -90,4 +94,67 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+//TODO
+uint64 
+sys_mmap(void){
+  int length, prot, flags, fd, offset;
+  argint(1, &length);
+  argint(2, &prot);
+  argint(3, &flags); 
+  argint(4, &fd);
+  argint(5, &offset);
+
+  struct proc *p = myproc();
+  if(p->mmap_addr - p->sz < p->sz)  //判断是否有足够空间
+    return -1;
+  if(flags & MAP_SHARED){
+    if((prot & PROT_READ) && !p->ofile[fd]->readable)
+      return -1;
+    if((prot & PROT_WRITE) && !p->ofile[fd]->writable)
+      return -1;    
+  }
+  p->vma[p->vma_size].addr = p->mmap_addr - p->sz;
+  p->vma[p->vma_size].sz = length;
+  p->vma[p->vma_size].prot = prot;
+  p->vma[p->vma_size].flags = flags;
+  p->vma[p->vma_size].file = p->ofile[fd];
+  p->vma[p->vma_size].offset = offset;
+  p->mmap_addr = p->vma[p->vma_size].addr;
+  p->vma_size++;
+  filedup(p->ofile[fd]);
+  return p->mmap_addr;
+}
+
+uint64
+sys_munmap(void){
+  uint64 addr;
+  int length;
+  argaddr(0, &addr);
+  argint(1, &length);
+  struct proc* p = myproc();
+  for(int i = 0; i < p->vma_size; ++i){
+    if(p->vma[i].addr == addr){
+      uint64 unmapsz = (p->vma[i].sz <= length ? p->vma[i].sz : length);
+      if(p->vma[i].flags & MAP_SHARED){
+        begin_op();
+        ilock(p->vma[i].file->ip);
+        writei(p->vma[i].file->ip, 1, addr, p->vma[i].offset, unmapsz);
+        iunlock(p->vma[i].file->ip);
+        end_op();
+      }
+      uvmunmap(p->pagetable, addr, unmapsz/PGSIZE, 1);
+      length -= unmapsz;
+      addr += unmapsz;
+      p->vma[i].offset += unmapsz;
+      p->vma[i].sz -= unmapsz;
+      p->vma[i].addr += unmapsz;
+      if(p->vma[i].sz == 0)
+        fileclose(p->vma[i].file);
+      if(length == 0)
+        break;
+    }
+  }
+  return 0;
 }
