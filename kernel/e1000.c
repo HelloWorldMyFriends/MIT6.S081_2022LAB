@@ -95,9 +95,8 @@ e1000_init(uint32 *xregs)
 }
 
 int
-e1000_transmit(struct mbuf *m)
+e1000_transmit(struct mbuf *m)  //TODO
 {
-  printf("---transmit---\n");
   //
   // Your code here.
   //
@@ -106,6 +105,7 @@ e1000_transmit(struct mbuf *m)
   // a pointer so that it can be freed after sending.
   //
 
+  acquire(&e1000_lock);
 
   // First ask the E1000 for the TX ring index at which 
   // it's expecting the next packet, by reading 
@@ -118,36 +118,75 @@ e1000_transmit(struct mbuf *m)
   // so return an error.
   if(idx > TX_RING_SIZE){
     printf("e1000_transmit error: TX_RING is overflowing\n");
+    release(&e1000_lock);
     return -1;
   }
   if(tx_ring[idx].status != E1000_TXD_STAT_DD){
     printf("e1000_transmit error: the E1000 hasn't finished the corresponding previous transmission request\n");
+    release(&e1000_lock);
     return -1;
   }
 
   // Otherwise, use mbuffree() to free the last mbuf that 
   // was transmitted from that descriptor (if there was one).
-
+  if(tx_mbufs[idx] != 0)
+    mbuffree(tx_mbufs[idx]); //mbuffree(struct mbuf* m)
 
   // Then fill in the descriptor. m->head points to the packet's content in memory, 
   // and m->len is the packet length. 
   // Set the necessary cmd flags (look at Section 3.3 in the E1000 manual) and 
   // stash away a pointer to the mbuf for later freeing. 
+  tx_mbufs[idx] = m;
+  tx_ring[idx].addr = (uint64)m->head;
+  tx_ring[idx].length = m->len;
+  tx_ring[idx].cmd = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP;
 
   // Finally, update the ring position by adding one to E1000_TDT modulo TX_RING_SIZE.
+  regs[E1000_TDT] = (idx + 1) % TX_RING_SIZE;
 
   // If e1000_transmit() added the mbuf successfully to the ring, return 0. 
   // On failure (e.g., there is no descriptor available to transmit the mbuf), 
   // return -1 so that the caller knows to free the mbuf.
 
+  release(&e1000_lock);
+  
+  // printf("transmit complete\n");
   return 0;
 }
 
 static void
-e1000_recv(void)
+e1000_recv(void)  //TODO
 {
-    printf("---recv---\n");
-  //
+  // printf("---recv---\n");
+  struct mbuf* buf;
+  
+  while(1){
+    int idx = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+  
+    if(idx > RX_RING_SIZE){
+      printf("e1000_receve error: RX_RING is overflowing\n");
+      return;
+    }
+  
+    if(!(rx_ring[idx].status & E1000_RXD_STAT_DD)){
+      return;
+    }
+
+    buf = rx_mbufs[idx];
+    //buf->len = rx_ring[idx].length;
+    mbufput(buf, rx_ring[idx].length);
+
+    //Deliver the mbuf to the network stack using net_rx().
+    net_rx(buf);
+
+    //Then allocate a new mbuf using mbufalloc() to replace the one just given to net_rx(). 
+    rx_mbufs[idx] = mbufalloc(0);
+    rx_ring[idx].addr = (uint64)rx_mbufs[idx]->head;
+    rx_ring[idx].status = 0;
+    regs[E1000_RDT] = idx;
+  }
+  
+    //
   // Your code here.
   //
   // Check for packets that have arrived from the e1000
